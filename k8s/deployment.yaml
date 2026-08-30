@@ -6,7 +6,10 @@ metadata:
   labels:
     app: gcp-python-fastapi
 spec:
-  replicas: 2
+  # Single replica: the cluster runs one small e2-small node whose CPU is
+  # largely consumed by system + ingress pods. One replica fits cleanly; scale
+  # up once the node pool has more capacity.
+  replicas: 1
   selector:
     matchLabels:
       app: gcp-python-fastapi
@@ -23,7 +26,7 @@ spec:
               containerPort: 8080
           resources:
             requests:
-              cpu: "100m"
+              cpu: "50m"
               memory: "128Mi"
             limits:
               cpu: "500m"
