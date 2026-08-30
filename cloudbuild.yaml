@@ -44,41 +44,23 @@ steps:
           --zone us-central1-a \
           --project $PROJECT_ID
 
-        # Install Nginx Ingress Controller if not already installed
-        kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
-
-        # Wait for Nginx Ingress Controller to be ready
-        kubectl wait --namespace ingress-nginx \
-          --for=condition=ready pod \
-          --selector=app.kubernetes.io/component=controller \
-          --timeout=120s
-
         # Patch image in deployment manifest
         sed -i "s|gcr.io/PROJECT_ID/my-app:latest|gcr.io/$PROJECT_ID/my-app:latest|g" k8s/deployment.yaml
 
-        # Apply manifests
+        # Apply manifests. The service is ClusterIP; access is via
+        # `kubectl port-forward` for demos. No ingress controller is installed
+        # (it was too heavy for the single-node cluster and is not needed for
+        # the observability demo).
         kubectl apply -f k8s/deployment.yaml
         kubectl apply -f k8s/service.yaml
-        kubectl apply -f k8s/ingress.yaml
         # PodMonitoring for Google Managed Prometheus (ignored if the CRD/
         # managed collection is not enabled on the cluster).
         kubectl apply -f k8s/podmonitoring.yaml || echo "PodMonitoring CRD not present; skipping"
 
         kubectl rollout status deployment/gcp-python-fastapi --timeout=120s
 
-        # Print the Ingress external IP.
-        # Shell vars/subshells are escaped as $$ so Cloud Build does not treat
-        # them as its own substitutions (same pattern as $$SNYK_TOKEN above).
-        echo "Waiting for Ingress IP..."
-        for i in $$(seq 1 12); do
-          IP=$$(kubectl get ingress gcp-python-fastapi -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
-          if [ -n "$$IP" ]; then
-            echo "App is available at: http://$$IP"
-            break
-          fi
-          echo "Still waiting... ($$i/12)"
-          sleep 10
-        done
+        echo "Deployed. Access locally with:"
+        echo "  kubectl port-forward deploy/gcp-python-fastapi 8080:8080"
 
 options:
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
