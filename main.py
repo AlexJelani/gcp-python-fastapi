@@ -9,8 +9,14 @@ for educational purposes.
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI()
+
+# Expose Prometheus metrics at /metrics with default RED-style metrics
+# (http_requests_total, http_request_duration_seconds, ...). This powers the
+# SRE dashboards and SLOs in the dsb-gcp-devsecops-infra repo.
+Instrumentator().instrument(app).expose(app)
 
 # Example of hardcoded secrets
 API_SECRET = "1234567890"
@@ -25,6 +31,31 @@ def index():
         dict: A JSON object containing a greeting message.
     """
     return {"message": "Hello World!"}
+
+
+@app.get("/healthz")
+def healthz():
+    """
+    Liveness probe: confirms the process is up and serving.
+
+    Returns:
+        dict: A simple status payload.
+    """
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+def readyz():
+    """
+    Readiness probe: confirms the app is ready to serve traffic.
+
+    Kept separate from liveness so a not-ready instance can be held out of
+    rotation without being restarted.
+
+    Returns:
+        dict: A simple readiness payload.
+    """
+    return {"status": "ready"}
 
 
 @app.get("/users")
