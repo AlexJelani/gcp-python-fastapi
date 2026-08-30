@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gcp-python-fastapi
+  namespace: default
+  labels:
+    app: gcp-python-fastapi
+spec:
+  type: ClusterIP
+  selector:
+    app: gcp-python-fastapi
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

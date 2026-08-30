@@ -32,23 +32,49 @@ steps:
         snyk test || true
         snyk code test || true
 
-  # Step 6: Deploy to Cloud Run
+  # Step 6: Deploy to GKE
   - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
     entrypoint: "bash"
     args:
       - "-c"
       - |
-        gcloud run deploy gcp-python-fastapi-service \
-        --image gcr.io/$PROJECT_ID/my-app:latest \
-        --region us-central1 \
-        --platform managed
+        gcloud container clusters get-credentials dsb-gke-cluster \
+          --region us-central1 \
+          --project $PROJECT_ID
 
-        gcloud run services add-iam-policy-binding \
-        gcp-python-fastapi-service \
-        --platform=managed \
-        --region=us-central1 \
-        --member="allUsers" \
-        --role="roles/run.invoker" \
+        # Install Nginx Ingress Controller if not already installed
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.1/deploy/static/provider/cloud/deploy.yaml
+
+        # Wait for Nginx Ingress Controller to be ready
+        kubectl wait --namespace ingress-nginx \
+          --for=condition=ready pod \
+          --selector=app.kubernetes.io/component=controller \
+          --timeout=120s
+
+        # Patch image in deployment manifest
+        sed -i "s|gcr.io/PROJECT_ID/my-app:latest|gcr.io/$PROJECT_ID/my-app:latest|g" k8s/deployment.yaml
+
+        # Apply manifests
+        kubectl apply -f k8s/deployment.yaml
+        kubectl apply -f k8s/service.yaml
+        kubectl apply -f k8s/ingress.yaml
+        # PodMonitoring for Google Managed Prometheus (ignored if the CRD/
+        # managed collection is not enabled on the cluster).
+        kubectl apply -f k8s/podmonitoring.yaml || echo "PodMonitoring CRD not present; skipping"
+
+        kubectl rollout status deployment/gcp-python-fastapi --timeout=120s
+
+        # Print the Ingress external IP
+        echo "Waiting for Ingress IP..."
+        for i in $(seq 1 12); do
+          IP=$(kubectl get ingress gcp-python-fastapi -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
+          if [ -n "$IP" ]; then
+            echo "App is available at: http://$IP"
+            break
+          fi
+          echo "Still waiting... ($i/12)"
+          sleep 10
+        done
 
 options:
   defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET

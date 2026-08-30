@@ -1,0 +1,23 @@
+# Google Managed Prometheus scrape config for gcp-python-fastapi.
+#
+# Requires managed collection enabled on the cluster:
+#   gcloud container clusters update dsb-gke-cluster \
+#     --zone us-central1-a --enable-managed-prometheus
+#
+# Apply alongside the other manifests:
+#   kubectl apply -f k8s/podmonitoring.yaml
+apiVersion: monitoring.googleapis.com/v1
+kind: PodMonitoring
+metadata:
+  name: gcp-python-fastapi
+  namespace: default
+  labels:
+    app: gcp-python-fastapi
+spec:
+  selector:
+    matchLabels:
+      app: gcp-python-fastapi
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
