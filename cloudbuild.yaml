@@ -38,8 +38,10 @@ steps:
     args:
       - "-c"
       - |
+        # The cluster is zonal (us-central1-a), not regional. Using --region
+        # here causes a 404 and every subsequent kubectl call to fail.
         gcloud container clusters get-credentials dsb-gke-cluster \
-          --region us-central1 \
+          --zone us-central1-a \
           --project $PROJECT_ID
 
         # Install Nginx Ingress Controller if not already installed
